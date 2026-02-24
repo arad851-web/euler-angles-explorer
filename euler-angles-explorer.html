@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Euler Angles Explorer — Interactive 3D</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0d0d0d; color: #d4d4d4; overflow: hidden; }
+  #app { display: flex; width: 100vw; height: 100vh; }
+
+  #panel { width: 420px; min-width: 420px; background: #1a1a1a; overflow-y: auto; padding: 16px; border-right: 2px solid #333; }
+  #panel h1 { font-size: 20px; color: #4fc3f7; margin-bottom: 10px; text-align: center; }
+  #panel h2 { font-size: 13px; color: #81c784; margin: 18px 0 6px; border-bottom: 1px solid #333; padding-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  .slider-group { margin: 6px 0; }
+  .slider-group label { display: flex; justify-content: space-between; font-size: 13px; color: #aaa; margin-bottom: 2px; align-items: center; }
+  .slider-group input[type="range"] { width: 100%; accent-color: #4fc3f7; }
+  .angle-val { color: #4fc3f7; font-weight: bold; min-width: 80px; text-align: right; font-family: monospace; font-size: 13px; display: none; }
+  .angle-input { background: #222; color: #4fc3f7; border: 1px solid #444; border-radius: 4px; width: 72px; padding: 2px 6px; font-family: monospace; font-size: 13px; font-weight: bold; text-align: right; }
+  .angle-input:focus { outline: 1px solid #4fc3f7; border-color: #4fc3f7; }
+  .angle-input::-webkit-inner-spin-button { opacity: 1; }
+  select { background: #222; color: #d4d4d4; border: 1px solid #444; padding: 5px 8px; width: 100%; border-radius: 4px; font-size: 13px; margin: 4px 0; }
+  .toggle-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 12px; }
+  .toggle-row input { accent-color: #4fc3f7; }
+  .color-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .math-box { background: #0e0e16; border: 1px solid #333; border-radius: 6px; padding: 12px; margin: 8px 0; overflow-x: auto; min-height: 40px; }
+  .step-btn { background: #333; color: #d4d4d4; border: 1px solid #555; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; margin: 2px; }
+  .step-btn:hover { background: #444; }
+  .step-btn.active { background: #4fc3f7; color: #000; font-weight: bold; }
+  .shapes-row { display: flex; gap: 5px; margin: 6px 0; flex-wrap: wrap; }
+  .shapes-row button { background: #222; color: #aaa; border: 1px solid #444; padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+  .shapes-row button.active { background: #4fc3f7; color: #000; }
+  .info-text { font-size: 11px; color: #555; margin: 4px 0; line-height: 1.4; }
+  .unit-toggle { display: inline-flex; gap: 0; border: 1px solid #555; border-radius: 4px; overflow: hidden; margin-left: 8px; }
+  .unit-toggle button { background: #222; color: #aaa; border: none; padding: 3px 10px; cursor: pointer; font-size: 11px; }
+  .unit-toggle button.active { background: #4fc3f7; color: #000; font-weight: bold; }
+  .anim-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+  .anim-row button { background: #333; color: #d4d4d4; border: 1px solid #555; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+  .anim-row button.active { background: #ff8844; color: #000; }
+  .anim-row input[type="range"] { width: 80px; accent-color: #ff8844; }
+  .anim-row label { font-size: 11px; color: #aaa; }
+
+  #canvas-wrap { flex: 1; position: relative; }
+  #step-indicator { position: absolute; top: 12px; left: 12px; font-size: 14px; color: #4fc3f7; background: rgba(0,0,0,0.8); padding: 6px 12px; border-radius: 6px; z-index: 10; }
+
+  /* Matrix display styles */
+  .mat-eq { display: flex; align-items: center; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
+  .mat-label { font-family: 'Georgia', 'Times New Roman', serif; font-size: 15px; color: #4fc3f7; font-style: italic; white-space: nowrap; }
+  .mat-label sub { font-size: 11px; }
+  .mat-eq .eq-sign { font-size: 16px; color: #888; }
+  table.matrix { border-collapse: collapse; display: inline-table; }
+  table.matrix td { font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; text-align: right; padding: 2px 6px; color: #d4d4d4; min-width: 58px; }
+  .mat-bracket { display: inline-flex; align-items: stretch; }
+  .mat-bracket .br { width: 4px; border: 1.5px solid #888; min-height: 100%; }
+  .mat-bracket .br-l { border-right: none; border-radius: 4px 0 0 4px; }
+  .mat-bracket .br-r { border-left: none; border-radius: 0 4px 4px 0; }
+  .mat-bracket table.matrix { margin: 2px 0; }
+
+  .omega-section { font-size: 13px; line-height: 1.8; }
+  .omega-section b { color: #81c784; }
+  .omega-formula { font-family: 'Georgia', serif; font-style: italic; color: #d4d4d4; margin: 2px 0; display: block; }
+  .omega-meta { color: #666; font-size: 11px; margin-top: 8px; }
+  .composition-note { color: #888; font-size: 12px; margin-top: 8px; font-style: italic; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="panel">
+    <h1>Euler Angles Explorer</h1>
+
+    <h2>Convention</h2>
+    <select id="convention">
+      <option value="ZXZ" selected>ZXZ — Eq. (88): R₃(ψ) R₁(θ) R₃(φ)</option>
+      <option value="ZYZ">ZYZ — R₃(ψ) R₂(θ) R₃(φ)</option>
+      <option value="XYZ">XYZ (Tait-Bryan / Roll-Pitch-Yaw)</option>
+      <option value="ZYX">ZYX</option>
+      <option value="XZX">XZX</option>
+      <option value="YXY">YXY</option>
+    </select>
+
+    <h2>Shape</h2>
+    <div class="shapes-row">
+      <button class="active" data-shape="box">Box</button>
+      <button data-shape="lshape">L-shape</button>
+      <button data-shape="arrow">Arrow</button>
+      <button data-shape="satellite">Satellite</button>
+      <button data-shape="plane">Airplane</button>
+      <button data-shape="top">Top</button>
+      <button data-shape="axes">Axes</button>
+    </div>
+
+    <h2>Angles <span class="unit-toggle" id="unit-toggle"><button class="active" data-unit="deg">deg</button><button data-unit="rad">rad</button></span></h2>
+    <div class="slider-group">
+      <label><span id="angle1-name">φ (1st: Z)</span> <input type="number" class="angle-input" id="angle1-num" value="0" min="-360" max="360" step="1">°</label>
+      <input type="range" id="angle1" min="-360" max="360" value="0" step="1">
+    </div>
+    <div class="slider-group">
+      <label><span id="angle2-name">θ (2nd: X)</span> <input type="number" class="angle-input" id="angle2-num" value="0" min="-360" max="360" step="1">°</label>
+      <input type="range" id="angle2" min="-360" max="360" value="0" step="1">
+    </div>
+    <div class="slider-group">
+      <label><span id="angle3-name">ψ (3rd: Z)</span> <input type="number" class="angle-input" id="angle3-num" value="0" min="-360" max="360" step="1">°</label>
+      <input type="range" id="angle3" min="-360" max="360" value="0" step="1">
+    </div>
+
+    <h2>Animate (const ω)</h2>
+    <div class="anim-row">
+      <button id="anim-phi" data-axis="1">φ̇</button>
+      <button id="anim-theta" data-axis="2">θ̇</button>
+      <button id="anim-psi" data-axis="3">ψ̇</button>
+      <button id="anim-stop">Stop</button>
+      <label>Speed: <input type="range" id="anim-speed" min="1" max="120" value="30"> <span id="anim-speed-val">30</span>°/s</label>
+    </div>
+    <p class="info-text">Click an angle to animate it at constant angular velocity. The other angles stay fixed.</p>
+
+    <h2>Step Through</h2>
+    <div style="display:flex; gap:3px; flex-wrap:wrap;">
+      <button class="step-btn" data-step="0">Original</button>
+      <button class="step-btn" data-step="1">After R₁</button>
+      <button class="step-btn" data-step="2">After R₁R₂</button>
+      <button class="step-btn active" data-step="3">Final (R₁R₂R₃)</button>
+    </div>
+
+    <h2>Visibility</h2>
+    <div class="toggle-row"><input type="checkbox" id="show-original" checked> <span class="color-dot" style="background:#555;"></span> Original (dashed)</div>
+    <div class="toggle-row"><input type="checkbox" id="show-after1" checked> <span class="color-dot" style="background:#ff6666;"></span> After 1st</div>
+    <div class="toggle-row"><input type="checkbox" id="show-after2" checked> <span class="color-dot" style="background:#66ff66;"></span> After 2nd</div>
+    <div class="toggle-row"><input type="checkbox" id="show-final" checked> <span class="color-dot" style="background:#6666ff;"></span> Final</div>
+    <div class="toggle-row"><input type="checkbox" id="show-shape" checked> Shape</div>
+    <div class="toggle-row"><input type="checkbox" id="show-ghost" checked> Ghost</div>
+    <div class="toggle-row"><input type="checkbox" id="show-rotation-arcs" checked> Arcs</div>
+
+    <h2>R<sub>total</sub></h2>
+    <div class="math-box" id="matrix-display"></div>
+
+    <h2>Individual Matrices</h2>
+    <div class="math-box" id="matrix-individual"></div>
+
+    <h2>Angular Velocity (Eq. 89–90)</h2>
+    <div class="math-box" id="omega-display"></div>
+  </div>
+
+  <div id="canvas-wrap">
+    <div id="step-indicator">All rotations (final)</div>
+    <canvas id="three-canvas"></canvas>
+  </div>
+</div>
+
+<script>
+(function() {
+  const canvasWrap = document.getElementById('canvas-wrap');
+  const canvas = document.getElementById('three-canvas');
+  let W = canvasWrap.clientWidth, H = canvasWrap.clientHeight;
+  canvas.width = W; canvas.height = H;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0d0d0d);
+  const camera = new THREE.PerspectiveCamera(50, W/H, 0.1, 100);
+  camera.position.set(4, 3, 5);
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  scene.add(new THREE.AmbientLight(0x555555));
+  const dl = new THREE.DirectionalLight(0xffffff, 0.7);
+  dl.position.set(5, 8, 5);
+  scene.add(dl);
+  scene.add(new THREE.GridHelper(10, 20, 0x222244, 0x1a1a2a));
+
+  const DEG = Math.PI / 180;
+  let useRadians = false;
+  let animAxis = 0;
+  let animSpeed = 30;
+
+  // ===== Unit toggle =====
+  document.querySelectorAll('#unit-toggle button').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#unit-toggle button').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      useRadians = this.dataset.unit === 'rad';
+    });
+  });
+
+  // ===== Animation buttons =====
+  document.querySelectorAll('.anim-row button[data-axis]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const ax = parseInt(this.dataset.axis);
+      if (animAxis === ax) { animAxis = 0; this.classList.remove('active'); }
+      else {
+        document.querySelectorAll('.anim-row button[data-axis]').forEach(b => b.classList.remove('active'));
+        animAxis = ax;
+        this.classList.add('active');
+      }
+    });
+  });
+  document.getElementById('anim-stop').addEventListener('click', function() {
+    animAxis = 0;
+    document.querySelectorAll('.anim-row button[data-axis]').forEach(b => b.classList.remove('active'));
+  });
+  document.getElementById('anim-speed').addEventListener('input', function() {
+    animSpeed = parseInt(this.value);
+    document.getElementById('anim-speed-val').textContent = this.value;
+  });
+
+  // ===== Helpers =====
+  function makeAxes(len, colors, dashed) {
+    const group = new THREE.Group();
+    [new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1)].forEach((d, i) => {
+      const arrow = new THREE.ArrowHelper(d, new THREE.Vector3(), len, colors[i], 0.12, 0.06);
+      if (dashed) { arrow.line.material = new THREE.LineDashedMaterial({ color: colors[i], dashSize: 0.1, gapSize: 0.05 }); arrow.line.computeLineDistances(); }
+      group.add(arrow);
+    });
+    return group;
+  }
+
+  function addLabel(text, pos, color) {
+    const c = document.createElement('canvas'); c.width = 96; c.height = 64;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = color; ctx.font = 'bold 40px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, 48, 32);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true }));
+    sp.position.copy(pos); sp.scale.set(0.45, 0.3, 1); return sp;
+  }
+
+  // ===== Shapes =====
+  let currentShape = 'box';
+  function createShapeMesh(opacity, wf) {
+    const s = currentShape;
+    const bm = new THREE.MeshStandardMaterial({ color: wf?0x444444:0x4488cc, transparent:true, opacity, wireframe:wf, metalness:0.2, roughness:0.6 });
+    const rm = new THREE.MeshStandardMaterial({ color: wf?0x553333:0xff4444, transparent:true, opacity:opacity*0.8, wireframe:wf });
+    const gm = new THREE.MeshStandardMaterial({ color: wf?0x335533:0x44ff44, transparent:true, opacity:opacity*0.8, wireframe:wf });
+    const ym = new THREE.MeshStandardMaterial({ color: wf?0x555533:0xffcc00, transparent:true, opacity:opacity*0.8, wireframe:wf });
+    const g = new THREE.Group();
+    if (s==='box') {
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(1.4,0.8,0.5), bm));
+      const x=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.6,0.3),rm); x.position.x=0.71; g.add(x);
+      const y=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.02,0.3),gm); y.position.y=0.41; g.add(y);
+      const z=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.3,0.02),ym); z.position.z=0.26; g.add(z);
+    } else if (s==='lshape') {
+      const b=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.35,0.4),bm); b.position.y=-0.18; g.add(b);
+      const v=new THREE.Mesh(new THREE.BoxGeometry(0.35,1.0,0.4),rm); v.position.set(-0.53,0.32,0); g.add(v);
+    } else if (s==='arrow') {
+      const sh=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,1.2,12),bm); sh.rotation.z=-Math.PI/2; sh.position.x=0.2; g.add(sh);
+      const hd=new THREE.Mesh(new THREE.ConeGeometry(0.2,0.5,12),rm); hd.rotation.z=-Math.PI/2; hd.position.x=1.05; g.add(hd);
+      const f1=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.4,0.05),gm); f1.position.set(-0.4,0,0); g.add(f1);
+      const f2=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.05,0.4),ym); f2.position.set(-0.4,0,0); g.add(f2);
+    } else if (s==='satellite') {
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(0.6,0.6,0.6),bm));
+      const pm=new THREE.MeshStandardMaterial({color:wf?0x333355:0x2244aa,transparent:true,opacity,wireframe:wf});
+      const p1=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.05,0.5),pm); p1.position.x=0.8; g.add(p1);
+      const p2=p1.clone(); p2.position.x=-0.8; g.add(p2);
+      const a=new THREE.Mesh(new THREE.ConeGeometry(0.15,0.4,8),rm); a.position.y=0.5; g.add(a);
+    } else if (s==='plane') {
+      const fu=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.08,1.6,12),bm); fu.rotation.z=-Math.PI/2; g.add(fu);
+      const no=new THREE.Mesh(new THREE.ConeGeometry(0.12,0.3,12),rm); no.rotation.z=-Math.PI/2; no.position.x=0.95; g.add(no);
+      const wi=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.03,1.8),gm); g.add(wi);
+      const tv=new THREE.Mesh(new THREE.BoxGeometry(0.25,0.4,0.03),ym); tv.position.set(-0.7,0.2,0); g.add(tv);
+      const th=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.03,0.6),ym); th.position.set(-0.7,0,0); g.add(th);
+    } else if (s==='top') {
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(0.4,16,12,0,Math.PI*2,0,Math.PI*0.6),bm));
+      const ti=new THREE.Mesh(new THREE.ConeGeometry(0.15,0.5,12),rm); ti.position.y=-0.5; ti.rotation.x=Math.PI; g.add(ti);
+      const ha=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.5,8),gm); ha.position.y=0.45; g.add(ha);
+      const st=new THREE.Mesh(new THREE.TorusGeometry(0.35,0.03,8,24),ym); st.position.y=0.05; g.add(st);
+    }
+    return g;
+  }
+
+  // ===== Scene objects =====
+  const originalAxes = makeAxes(2.5, [0x666666,0x666666,0x666666], true);
+  scene.add(originalAxes);
+  originalAxes.add(addLabel('X',new THREE.Vector3(2.7,0,0),'#888'));
+  originalAxes.add(addLabel('Y',new THREE.Vector3(0,2.7,0),'#888'));
+  originalAxes.add(addLabel('Z',new THREE.Vector3(0,0,2.7),'#888'));
+
+  const after1Axes = makeAxes(2.2, [0xff6666,0xff6666,0xff6666], false);
+  scene.add(after1Axes);
+  const after2Axes = makeAxes(2.0, [0x66ff66,0x66ff66,0x66ff66], false);
+  scene.add(after2Axes);
+  const finalAxes = makeAxes(2.5, [0xff4444,0x44ff44,0x4444ff], false);
+  scene.add(finalAxes);
+  finalAxes.add(addLabel("X'",new THREE.Vector3(2.7,0,0),'#ff6666'));
+  finalAxes.add(addLabel("Y'",new THREE.Vector3(0,2.7,0),'#66ff66'));
+  finalAxes.add(addLabel("Z'",new THREE.Vector3(0,0,2.7),'#6666ff'));
+
+  const shapeGroup = new THREE.Group(); scene.add(shapeGroup);
+  const ghostGroup = new THREE.Group(); scene.add(ghostGroup);
+  const arcGroup1 = new THREE.Group(); scene.add(arcGroup1);
+  const arcGroup2 = new THREE.Group(); scene.add(arcGroup2);
+  const arcGroup3 = new THREE.Group(); scene.add(arcGroup3);
+
+  function rebuildShape() {
+    shapeGroup.clear(); ghostGroup.clear();
+    shapeGroup.add(createShapeMesh(0.6, false));
+    ghostGroup.add(createShapeMesh(0.15, true));
+  }
+  rebuildShape();
+
+  document.querySelectorAll('.shapes-row button').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.shapes-row button').forEach(b=>b.classList.remove('active'));
+      this.classList.add('active');
+      currentShape = this.dataset.shape;
+      rebuildShape();
+    });
+  });
+
+  // ===== Rotation matrices =====
+  function primaryRotation(axisIdx, angle) {
+    const c=Math.cos(angle), s=Math.sin(angle);
+    if (axisIdx===1) return new THREE.Matrix4().set(1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1);
+    if (axisIdx===2) return new THREE.Matrix4().set(c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1);
+    return new THREE.Matrix4().set(c,s,0,0, -s,c,0,0, 0,0,1,0, 0,0,0,1);
+  }
+
+  function getConventionAxes(conv) { const m={X:1,Y:2,Z:3}; return [m[conv[0]],m[conv[1]],m[conv[2]]]; }
+  function getAngleNames(conv) {
+    const n={ZXZ:['φ (1st: Z)','θ (2nd: X)','ψ (3rd: Z)'],ZYZ:['φ (1st: Z)','θ (2nd: Y)','ψ (3rd: Z)'],XYZ:['φ (1st: X)','θ (2nd: Y)','ψ (3rd: Z)'],ZYX:['φ (1st: Z)','θ (2nd: Y)','ψ (3rd: X)'],XZX:['φ (1st: X)','θ (2nd: Z)','ψ (3rd: X)'],YXY:['φ (1st: Y)','θ (2nd: X)','ψ (3rd: Y)']};
+    return n[conv]||['φ','θ','ψ'];
+  }
+  function mat4to3(m) { const e=m.elements; return [[e[0],e[4],e[8]],[e[1],e[5],e[9]],[e[2],e[6],e[10]]]; }
+
+  function fmtAngle(radians) {
+    if (useRadians) {
+      const v = radians / Math.PI;
+      if (Math.abs(v) < 0.001) return '0';
+      if (Math.abs(v - 1) < 0.001) return 'π';
+      if (Math.abs(v + 1) < 0.001) return '−π';
+      if (Math.abs(v - 0.5) < 0.01) return 'π/2';
+      if (Math.abs(v + 0.5) < 0.01) return '−π/2';
+      return radians.toFixed(3) + ' rad';
+    }
+    return (radians / DEG).toFixed(0) + '°';
+  }
+
+  // ===== HTML matrix builder =====
+  function fmtVal(v) {
+    if (Math.abs(v) < 0.00005) return '0';
+    return v.toFixed(4);
+  }
+
+  function matrixHTML(m3) {
+    return '<span class="mat-bracket"><span class="br br-l"></span>' +
+      '<table class="matrix">' +
+      m3.map(row => '<tr>' + row.map(v => {
+        const s = fmtVal(v);
+        const color = s === '0' ? '#555' : (parseFloat(s) < 0 ? '#ef9a9a' : '#d4d4d4');
+        return `<td style="color:${color}">${s}</td>`;
+      }).join('') + '</tr>').join('') +
+      '</table><span class="br br-r"></span></span>';
+  }
+
+  function matEqHTML(label, m3) {
+    return `<div class="mat-eq"><span class="mat-label">${label}</span><span class="eq-sign">=</span>${matrixHTML(m3)}</div>`;
+  }
+
+  function createArc(axis, angle, radius, color, offsetMatrix) {
+    const group = new THREE.Group();
+    if (Math.abs(angle) < 0.01) return group;
+    const pts = [], segs = 40;
+    for (let i=0; i<=segs; i++) {
+      const t = (i/segs)*angle;
+      const c=Math.cos(t)*radius, s=Math.sin(t)*radius;
+      if (axis===1) pts.push(new THREE.Vector3(0,c,s));
+      else if (axis===2) pts.push(new THREE.Vector3(s,0,c));
+      else pts.push(new THREE.Vector3(c,s,0));
+    }
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color, transparent:true, opacity:0.8}));
+    if (offsetMatrix) line.applyMatrix4(offsetMatrix);
+    group.add(line);
+    const last = pts[pts.length-1].clone(), prev = pts[pts.length-2].clone();
+    if (offsetMatrix) { last.applyMatrix4(offsetMatrix); prev.applyMatrix4(offsetMatrix); }
+    group.add(new THREE.ArrowHelper(last.clone().sub(prev).normalize(), last, 0.01, color, 0.15, 0.06));
+    return group;
+  }
+
+  // ===== State =====
+  let currentStep = 3;
+  document.querySelectorAll('.step-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.step-btn').forEach(b=>b.classList.remove('active'));
+      this.classList.add('active');
+      currentStep = parseInt(this.dataset.step);
+      const labels = ['Original','After R₁','After R₁·R₂','Final (R₁·R₂·R₃)'];
+      document.getElementById('step-indicator').textContent = labels[currentStep];
+    });
+  });
+
+  document.getElementById('convention').addEventListener('change', function() {
+    const names = getAngleNames(this.value);
+    document.getElementById('angle1-name').textContent = names[0];
+    document.getElementById('angle2-name').textContent = names[1];
+    document.getElementById('angle3-name').textContent = names[2];
+  });
+
+  // ===== Main update =====
+  function updateAll() {
+    const conv = document.getElementById('convention').value;
+    const axes = getConventionAxes(conv);
+    const axNames = ['','X','Y','Z'];
+    const a1 = parseInt(document.getElementById('angle1').value) * DEG;
+    const a2 = parseInt(document.getElementById('angle2').value) * DEG;
+    const a3 = parseInt(document.getElementById('angle3').value) * DEG;
+
+    // Sync number inputs with slider values (in degrees)
+    document.getElementById('angle1-num').value = Math.round(a1 / DEG);
+    document.getElementById('angle2-num').value = Math.round(a2 / DEG);
+    document.getElementById('angle3-num').value = Math.round(a3 / DEG);
+
+    const R1 = primaryRotation(axes[0], a1);
+    const R2 = primaryRotation(axes[1], a2);
+    const R3 = primaryRotation(axes[2], a3);
+    const R12 = new THREE.Matrix4().copy(R2).multiply(R1);
+    const Rtotal = new THREE.Matrix4().copy(R3).multiply(R12);
+
+    after1Axes.matrix.copy(R1); after1Axes.matrixAutoUpdate = false;
+    after2Axes.matrix.copy(R12); after2Axes.matrixAutoUpdate = false;
+    finalAxes.matrix.copy(Rtotal); finalAxes.matrixAutoUpdate = false;
+
+    let shapeMat;
+    if (currentStep===0) shapeMat = new THREE.Matrix4();
+    else if (currentStep===1) shapeMat = R1.clone();
+    else if (currentStep===2) shapeMat = R12.clone();
+    else shapeMat = Rtotal.clone();
+    shapeGroup.matrix.copy(shapeMat); shapeGroup.matrixAutoUpdate = false;
+
+    originalAxes.visible = document.getElementById('show-original').checked;
+    after1Axes.visible = document.getElementById('show-after1').checked && currentStep >= 1;
+    after2Axes.visible = document.getElementById('show-after2').checked && currentStep >= 2;
+    finalAxes.visible = document.getElementById('show-final').checked && currentStep >= 3;
+    shapeGroup.visible = document.getElementById('show-shape').checked;
+    ghostGroup.visible = document.getElementById('show-ghost').checked;
+
+    const showArcs = document.getElementById('show-rotation-arcs').checked;
+    arcGroup1.clear(); arcGroup2.clear(); arcGroup3.clear();
+    if (showArcs) {
+      if (currentStep>=1) arcGroup1.add(createArc(axes[0],a1,1.8,0xff6666,null));
+      if (currentStep>=2) arcGroup2.add(createArc(axes[1],a2,1.5,0x66ff66,R1));
+      if (currentStep>=3) arcGroup3.add(createArc(axes[2],a3,1.2,0x6666ff,R12));
+    }
+    arcGroup1.visible = showArcs && currentStep>=1;
+    arcGroup2.visible = showArcs && currentStep>=2;
+    arcGroup3.visible = showArcs && currentStep>=3;
+
+    // === Matrix displays (pure HTML) ===
+    const Rm = mat4to3(Rtotal);
+    const R1m = mat4to3(R1), R2m = mat4to3(R2), R3m = mat4to3(R3);
+    const a1s = fmtAngle(a1), a2s = fmtAngle(a2), a3s = fmtAngle(a3);
+    const ax1 = axNames[axes[0]], ax2 = axNames[axes[1]], ax3 = axNames[axes[2]];
+
+    document.getElementById('matrix-display').innerHTML =
+      matEqHTML('R<sub>total</sub>', Rm);
+
+    document.getElementById('matrix-individual').innerHTML =
+      matEqHTML(`R<sub>${ax3}</sub>(${a3s})`, R3m) +
+      matEqHTML(`R<sub>${ax2}</sub>(${a2s})`, R2m) +
+      matEqHTML(`R<sub>${ax1}</sub>(${a1s})`, R1m) +
+      `<div class="composition-note">R = R<sub>${ax3}</sub> · R<sub>${ax2}</sub> · R<sub>${ax1}</sub></div>`;
+
+    // Angular velocity
+    const Tr = Rm[0][0]+Rm[1][1]+Rm[2][2];
+    const netAngle = Math.acos(Math.max(-1, Math.min(1, (Tr-1)/2)));
+    if (conv === 'ZXZ') {
+      document.getElementById('omega-display').innerHTML =
+        `<div class="omega-section">` +
+        `<b>Body frame (Eq. 90):</b><br>` +
+        `<span class="omega-formula">ω₁ = φ̇ sinθ sinψ + θ̇ cosψ</span>` +
+        `<span class="omega-formula">ω₂ = φ̇ sinθ cosψ − θ̇ sinψ</span>` +
+        `<span class="omega-formula">ω₃ = ψ̇ + φ̇ cosθ</span><br>` +
+        `<b>Inertial frame (Eq. 89):</b><br>` +
+        `<span class="omega-formula">ω'₁ = θ̇ cosφ + ψ̇ sinθ sinφ</span>` +
+        `<span class="omega-formula">ω'₂ = θ̇ sinφ − ψ̇ sinθ cosφ</span>` +
+        `<span class="omega-formula">ω'₃ = φ̇ + ψ̇ cosθ</span><br>` +
+        `<div class="omega-meta">θ = ${a2s} &nbsp;|&nbsp; sinθ = ${Math.sin(a2).toFixed(4)} &nbsp;|&nbsp; cosθ = ${Math.cos(a2).toFixed(4)}<br>` +
+        `Tr(R) = ${Tr.toFixed(4)} &nbsp;|&nbsp; net angle = ${fmtAngle(netAngle)} (Eq. 70)</div>` +
+        `</div>`;
+    } else {
+      document.getElementById('omega-display').innerHTML =
+        `<div class="omega-section">` +
+        `Convention: <b>${conv}</b><br>` +
+        `Tr(R) = ${Tr.toFixed(4)}<br>` +
+        `Net rotation: ${fmtAngle(netAngle)}<br>` +
+        `<div class="omega-meta">Eq. 70: Tr(R) = 1 + 2cosθ</div>` +
+        `</div>`;
+    }
+  }
+
+  // ===== Sync slider ↔ number input =====
+  ['angle1','angle2','angle3'].forEach(id => {
+    const slider = document.getElementById(id);
+    const num = document.getElementById(id + '-num');
+    slider.addEventListener('input', () => { num.value = slider.value; updateAll(); });
+    num.addEventListener('input', () => {
+      let v = parseInt(num.value) || 0;
+      v = Math.max(-360, Math.min(360, v));
+      slider.value = v;
+      updateAll();
+    });
+  });
+  document.getElementById('convention').addEventListener('change', updateAll);
+  ['show-original','show-after1','show-after2','show-final','show-shape','show-ghost','show-rotation-arcs'].forEach(id =>
+    document.getElementById(id).addEventListener('change', updateAll));
+
+  // ===== Animation loop =====
+  let lastT = 0;
+  function animate(now) {
+    requestAnimationFrame(animate);
+    const dt = lastT ? Math.min((now-lastT)/1000, 0.05) : 0;
+    lastT = now;
+
+    if (animAxis > 0 && dt > 0) {
+      const slId = ['','angle1','angle2','angle3'][animAxis];
+      const sl = document.getElementById(slId);
+      let v = parseFloat(sl.value) + animSpeed * dt;
+      if (v > 360) v -= 720;
+      if (v < -360) v += 720;
+      sl.value = v;
+      document.getElementById(slId + '-num').value = Math.round(v);
+    }
+
+    updateAll();
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  window.addEventListener('resize', () => {
+    W = canvasWrap.clientWidth; H = canvasWrap.clientHeight;
+    camera.aspect = W/H; camera.updateProjectionMatrix();
+    renderer.setSize(W, H);
+  });
+
+  updateAll();
+  requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>
